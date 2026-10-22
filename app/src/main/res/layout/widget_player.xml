@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Legacy placeholder: intentionally not referenced by the app.
+
+    Keeping this resource name prevents its resource id (0x7f07001a) from being
+    reassigned to widget_player_v2. AppWidgetHostView reuses the old view tree
+    when the RemoteViews layout id is unchanged, so v2 must have a different id
+    for existing widgets to be re-inflated instead of showing
+    "Problem loading widget".
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />

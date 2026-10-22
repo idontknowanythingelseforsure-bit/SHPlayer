@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Four vertical sliders with round thumbs (matches the requested EQ icon). -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M4,3 L4,21"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.5" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M9.33,3 L9.33,21"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.5" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M14.67,3 L14.67,21"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.5" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M20,3 L20,21"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.5" />
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M1.75,7.5 a2.25,2.25 0 1,0 4.5,0 a2.25,2.25 0 1,0 -4.5,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7.08,15.5 a2.25,2.25 0 1,0 4.5,0 a2.25,2.25 0 1,0 -4.5,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12.42,10.5 a2.25,2.25 0 1,0 4.5,0 a2.25,2.25 0 1,0 -4.5,0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M17.75,17.5 a2.25,2.25 0 1,0 4.5,0 a2.25,2.25 0 1,0 -4.5,0" />
+</vector>

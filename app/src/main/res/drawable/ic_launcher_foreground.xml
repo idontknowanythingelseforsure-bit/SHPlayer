@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Play mark -->
+    <path
+        android:fillColor="#FF7A18"
+        android:pathData="M45,38 L45,70 L71,54 Z" />
+    <!-- Equalizer bars -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,46 L40,46 L40,62 L36,62 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,42 L46,42 L46,66 L42,66 Z" />
+</vector>
