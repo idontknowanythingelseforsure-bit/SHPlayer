@@ -24,6 +24,7 @@ object Prefs {
     private const val FILE = "sh_player_prefs"
 
     private const val KEY_THEME_MODE = "theme_mode"
+    private const val KEY_SORT_MODE = "sort_mode"
     private const val KEY_GAPLESS = "gapless"
     private const val KEY_CROSSFADE = "crossfade_seconds"
     private const val KEY_FAVORITES = "favorites"
@@ -46,6 +47,11 @@ object Prefs {
     var themeMode: Int
         get() = prefs.getInt(KEY_THEME_MODE, THEME_DARK)
         set(value) = prefs.edit { putInt(KEY_THEME_MODE, value) }
+
+    /** Selected library sort mode, stored by enum name. */
+    var sortMode: String
+        get() = prefs.getString(KEY_SORT_MODE, "Default").orEmpty()
+        set(value) = prefs.edit { putString(KEY_SORT_MODE, value) }
 
     /** Reserved: needs a gapless-capable audio sink before it can be enabled. */
     var gaplessEnabled: Boolean
@@ -187,6 +193,47 @@ object Prefs {
         playlists[index] = playlist.copy(songIds = playlist.songIds + newIds)
         localPlaylists = playlists
         return newIds.size
+    }
+
+    /** @return true when the playlist existed and the new name was saved. */
+    fun renameLocalPlaylist(playlistId: Long, name: String): Boolean {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return false
+        val playlists = localPlaylists.toMutableList()
+        val index = playlists.indexOfFirst { it.id == playlistId }
+        if (index < 0) return false
+        playlists[index] = playlists[index].copy(name = trimmed)
+        localPlaylists = playlists
+        return true
+    }
+
+    /** @return true when the playlist existed and was removed. */
+    fun removeLocalPlaylist(playlistId: Long): Boolean {
+        val playlists = localPlaylists
+        val remaining = playlists.filterNot { it.id == playlistId }
+        if (remaining.size == playlists.size) return false
+        localPlaylists = remaining
+        return true
+    }
+
+    /**
+     * Removes songs from a local playlist.
+     *
+     * @return the number of songs removed, or -1 when the playlist is gone.
+     */
+    fun removeSongsFromLocalPlaylist(playlistId: Long, songIds: List<Long>): Int {
+        val playlists = localPlaylists.toMutableList()
+        val index = playlists.indexOfFirst { it.id == playlistId }
+        if (index < 0) return -1
+        val playlist = playlists[index]
+        val removeIds = songIds.toSet()
+        val updated = playlist.songIds.filterNot { it in removeIds }
+        val removed = playlist.songIds.size - updated.size
+        if (removed > 0) {
+            playlists[index] = playlist.copy(songIds = updated)
+            localPlaylists = playlists
+        }
+        return removed
     }
 
     /**

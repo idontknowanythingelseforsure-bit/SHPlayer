@@ -20,6 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shplayer.data.Playlist
 import com.shplayer.data.Song
+import com.shplayer.ui.SortMode
 
 @Composable
 fun SongInfoDialog(song: Song, onDismiss: () -> Unit) {
@@ -51,6 +53,7 @@ fun SongInfoDialog(song: Song, onDismiss: () -> Unit) {
                 InfoRow("Duration", formatLongDuration(song.durationMs))
                 if (song.year > 0) InfoRow("Year", song.year.toString())
                 if (song.trackNumber > 0) InfoRow("Track", song.trackNumber.toString())
+                InfoRow("File name", song.fileName)
                 InfoRow("Folder", song.folder)
                 InfoRow("Media id", song.id.toString())
             }
@@ -117,6 +120,174 @@ fun CreatePlaylistDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel", color = colors.onSurfaceVariant)
+            }
+        },
+    )
+}
+
+@Composable
+fun RenamePlaylistDialog(
+    currentName: String,
+    onDismiss: () -> Unit,
+    onRename: (String) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    var name by remember(currentName) { mutableStateOf(currentName) }
+    val trimmed = name.trim()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit playlist name") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                placeholder = { Text("Playlist name") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onRename(trimmed) },
+                enabled = trimmed.isNotEmpty() && trimmed != currentName,
+            ) {
+                Text("Save", color = colors.primary)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = colors.onSurfaceVariant)
+            }
+        },
+    )
+}
+
+@Composable
+fun ConfirmRemovePlaylistDialog(
+    playlistName: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Remove playlist?") },
+        text = {
+            Text(
+                "\"$playlistName\" and its song list will be removed. " +
+                    "The songs themselves are not deleted.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Remove", color = colors.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = colors.onSurfaceVariant)
+            }
+        },
+    )
+}
+
+/** Lets the Playlists screen's top-bar actions choose which local playlist to act on. */
+@Composable
+fun PlaylistPickerDialog(
+    title: String,
+    playlists: List<Playlist>,
+    onPick: (Playlist) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 300.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                playlists.forEach { playlist ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(playlist) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.QueueMusic,
+                            contentDescription = null,
+                            tint = colors.primary,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = playlist.name,
+                            fontSize = 16.sp,
+                            color = colors.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = "${playlist.songCount} songs",
+                            fontSize = 12.sp,
+                            color = colors.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = colors.onSurfaceVariant)
+            }
+        },
+    )
+}
+
+@Composable
+fun SortByDialog(
+    current: SortMode,
+    onSelect: (SortMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sort by") },
+        text = {
+            Column {
+                SortMode.entries.forEach { mode ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(mode) }
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = mode == current,
+                            onClick = { onSelect(mode) },
+                        )
+                        Text(
+                            text = mode.label,
+                            fontSize = 15.sp,
+                            color = colors.onBackground,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done", color = colors.primary)
             }
         },
     )

@@ -25,9 +25,17 @@ Min SDK 26 · Target/Compile SDK 35 · Kotlin 2.0 · Jetpack Compose · Media3
     smart list lives in the navigation drawer
   - hamburger navigation drawer
   - top bar with back / drawer, contextual icon, title, search and overflow menu
+  - the contextual playlist icon in the top bar is also an **"Add to
+    playlist"** shortcut whenever the current screen shows songs (on Home it
+    uses the recently played list; with no history it explains what to do)
   - overflow menu adds **"Add to playlist"** whenever the current screen shows
     songs, so an album, artist, genre, folder, smart list or whole library can
     be added in one go
+  - overflow menu adds **"Sort by"** on song lists, with Default order plus
+    **File name (A to Z)**, **File name (Z to A)**,
+    **Modified (newest first)** and **Modified (oldest first)**. The choice is
+    saved and applied to the current list (including its Play all / Shuffle
+    actions).
   - flat song rows with title, artist, duration and a per-row context menu
   - two-column album / artist / genre grids with disc or silhouette placeholders
   - CD-disc artwork drawn in Compose when an album has no embedded art
@@ -39,10 +47,15 @@ Min SDK 26 · Target/Compile SDK 35 · Kotlin 2.0 · Jetpack Compose · Media3
   Playlists screen, plus "Add to playlist" in every song's overflow menu.
   Playlists are stored app-locally as JSON (negative ids) alongside the
   read-only MediaStore playlists.
-- **Filling a playlist:** local playlist details have an orange "+" FAB with
-  "Add songs" (searchable multi-select picker with select-all) and "Add a
-  folder" (adds every track in the folder). The bulk top-bar action and the
-  per-song row action cover the other direction.
+- **Playlist management:** each app-created playlist row and its detail-screen
+  overflow menu offer **Edit playlist name** and **Remove playlist** (with a
+  confirmation). System MediaStore playlists stay read-only.
+- **Filling and emptying a playlist:** local playlist details have an orange
+  "+" FAB with "Add songs" (searchable multi-select picker with select-all) and
+  "Add a folder" (adds every track in the folder). The overflow menu has
+  **Remove songs** (multi-select), and each song's row menu gains
+  **Remove from playlist** while viewing an editable playlist. The bulk top-bar
+  action and the per-song row action cover the add direction.
 - **Folder access through the file manager:** the Folders screen can launch the
   system folder picker (`ACTION_OPEN_DOCUMENT_TREE`). Selected roots are
   persisted and the list can show only those folders (with a "Show all" toggle).
@@ -59,7 +72,7 @@ Min SDK 26 · Target/Compile SDK 35 · Kotlin 2.0 · Jetpack Compose · Media3
 - Smart lists: Recently played (persisted play history), Recently added
   (`DATE_ADDED`), Top rated (favorites) and Most played (play counters).
 - Per-song actions: play, play next, enqueue, add/remove favorite, add to
-  playlist, song info, share.
+  playlist, remove from playlist (inside editable playlists), song info, share.
 - Playback via Media3 `ExoPlayer` inside a `MediaSessionService`:
   background playback, media notification, headset/Bluetooth controls.
 - Now Playing: large disc artwork, queue position badge (`6/8`), seek bar,
@@ -119,11 +132,13 @@ com.shplayer
 └── ui/
     ├── AppRoot.kt           drawer, top bar, route stack, mini player, dialogs
     ├── Routes.kt            in-memory navigation graph
+    ├── SortMode.kt          persisted sort modes + list ordering helper
     ├── PlayActions.kt       playback callbacks + shared row menu builder
     ├── LibraryViewModel.kt  library, favorites, play counts, playlists, folders
     ├── components/
     │   ├── Common.kt        disc art, song rows, grids, fast scroller, mini player
-    │   └── Dialogs.kt       song info, create playlist, add-to-playlist dialogs
+    │   └── Dialogs.kt       song info, playlist create/rename/remove,
+    │                        add-to-playlist and sort dialogs
     ├── screens/             Home, list/browse/detail, Search, Song/Folder
     │                        pickers, NowPlaying, Equalizer, Settings, Permission
     └── theme/Theme.kt       black + orange palette
@@ -148,7 +163,9 @@ Swapping engines is a one-line change in `EffectsBackendFactory`.
 
 Deliberately deferred, so the first version stays understandable and stable:
 
-- playlist rename / delete / reorder and removing songs from a playlist
+- reordering songs inside a playlist (drag-and-drop)
+- editing MediaStore/system playlists (the app-created playlists are fully
+  editable)
 - gapless playback and crossfade (settings UI exists, disabled)
 - queue persistence across process death
 - secondary storage volumes (SD cards) in the MediaStore query — folder roots

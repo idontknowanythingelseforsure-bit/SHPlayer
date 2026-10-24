@@ -31,12 +31,17 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddBox
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CreateNewFolder
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -245,6 +250,8 @@ fun PlaylistsScreen(
     playlists: List<Playlist>,
     onCreate: () -> Unit,
     onOpen: (Playlist) -> Unit,
+    onRename: (Playlist) -> Unit = {},
+    onDelete: (Playlist) -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -266,7 +273,12 @@ fun PlaylistsScreen(
             } else {
                 items(count = playlists.size, key = { playlists[it].id }) { index ->
                     val playlist = playlists[index]
-                    PlaylistRow(playlist = playlist, onClick = { onOpen(playlist) })
+                    PlaylistRow(
+                        playlist = playlist,
+                        onClick = { onOpen(playlist) },
+                        onRename = { onRename(playlist) },
+                        onDelete = { onDelete(playlist) },
+                    )
                 }
             }
 
@@ -332,15 +344,22 @@ private fun CreatePlaylistRow(onClick: () -> Unit) {
 }
 
 @Composable
-private fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
+private fun PlaylistRow(
+    playlist: Playlist,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
+    var menuOpen by remember { mutableStateOf(false) }
+    val editable = playlist.id < 0L
 
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -363,6 +382,49 @@ private fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
                     fontSize = 13.sp,
                     color = colors.onSurfaceVariant,
                 )
+            }
+            if (editable) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = "Playlist options",
+                            tint = colors.onSurfaceVariant,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit playlist name") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Edit,
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onRename()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Remove playlist") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Delete,
+                                    contentDescription = null,
+                                    tint = colors.error,
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onDelete()
+                            },
+                        )
+                    }
+                }
             }
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,

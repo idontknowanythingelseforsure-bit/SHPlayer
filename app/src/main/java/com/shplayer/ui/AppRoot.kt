@@ -27,6 +27,8 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -38,6 +40,7 @@ import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material3.AlertDialog
@@ -61,6 +64,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,15 +76,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.shplayer.data.Prefs
 import com.shplayer.data.Song
 import com.shplayer.playback.PlayerController
 import com.shplayer.ui.components.AddSongsToPlaylistDialog
 import com.shplayer.ui.components.AddToPlaylistDialog
+import com.shplayer.ui.components.ConfirmRemovePlaylistDialog
 import com.shplayer.ui.components.CreatePlaylistDialog
 import com.shplayer.ui.components.IconLabelRow
 import com.shplayer.ui.components.MiniPlayer
+import com.shplayer.ui.components.PlaylistPickerDialog
+import com.shplayer.ui.components.RenamePlaylistDialog
 import com.shplayer.ui.components.SectionHeader
 import com.shplayer.ui.components.SongInfoDialog
+import com.shplayer.ui.components.SortByDialog
 import com.shplayer.ui.screens.AlbumDetailScreen
 import com.shplayer.ui.screens.AlbumsScreen
 import com.shplayer.ui.screens.AllSongsScreen
@@ -96,6 +105,7 @@ import com.shplayer.ui.screens.HomeScreen
 import com.shplayer.ui.screens.NowPlayingScreen
 import com.shplayer.ui.screens.PlaylistDetailScreen
 import com.shplayer.ui.screens.PlaylistsScreen
+import com.shplayer.ui.screens.RemoveSongsScreen
 import com.shplayer.ui.screens.SearchScreen
 import com.shplayer.ui.screens.SettingsScreen
 import com.shplayer.ui.screens.SmartScreen
@@ -106,6 +116,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class AppMenuAction { SoundEffects, Settings, SleepTimer, About }
+
+private data class PlaylistTarget(val id: Long, val name: String)
+
+private enum class PlaylistMenuMode { Rename, Remove }
 
 @Composable
 fun AppRoot(
@@ -129,6 +143,12 @@ fun AppRoot(
     var createPlaylistDialog by remember { mutableStateOf(false) }
     var sleepDialog by remember { mutableStateOf(false) }
     var aboutDialog by remember { mutableStateOf(false) }
+    var sortDialog by remember { mutableStateOf(false) }
+    var renamePlaylistTarget by remember { mutableStateOf<PlaylistTarget?>(null) }
+    var removePlaylistTarget by remember { mutableStateOf<PlaylistTarget?>(null) }
+    var playlistPickerMode by remember { mutableStateOf<PlaylistMenuMode?>(null) }
+    var sortModeKey by rememberSaveable { mutableStateOf(Prefs.sortMode) }
+    val sortMode = SortMode.fromKey(sortModeKey)
 
     val navigate: (Route) -> Unit = { route ->
         addSongsDialog = false
@@ -195,8 +215,10 @@ fun AppRoot(
         library.playCounts,
         library.localPlaylists,
         searchSongs,
+        sortMode,
     ) {
         routeSongs = when (val route = current) {
+            Route.Home -> recentSongs
             Route.Songs -> library.songs
             is Route.Smart -> smartSongs(route.kind, library)
             is Route.AlbumDetail -> library.songs
@@ -208,6 +230,9 @@ fun AppRoot(
             is Route.FolderDetail -> library.songs.filter { it.folder == route.path }
             Route.Search -> searchSongs
             else -> emptyList()
+        }
+        if (current.supportsSort()) {
+            routeSongs = routeSongs.sortedFor(sortMode)
         }
     }
 
@@ -251,6 +276,9 @@ fun AppRoot(
         val showMiniPlayer = current != Route.NowPlaying &&
             current != Route.Equalizer &&
             playerState.hasTrack
+        val currentPlaylist = current as? Route.PlaylistDetail
+        val editablePlaylist = currentPlaylist != null && currentPlaylist.playlistId < 0L
+        val managePlaylists = current == Route.Playlists && library.localPlaylists.isNotEmpty()
 
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -263,9 +291,44 @@ fun AppRoot(
                         onBack = goBack,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onSearch = { if (current != Route.Search) navigate(Route.Search) },
-                        showAddToPlaylist = routeSongs.isNotEmpty(),
+                        showAddToPlaylist = routeSongs.isNotEmpty() || current == Route.Home,
                         onAddToPlaylist = {
-                            bulkPlaylistSongs = routeSongs
+                            if (routeSongs.isEmpty()) {
+                                Toast.makeText(
+                                    context,
+                                    "Nothing to add yet — play a song first",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                bulkPlaylistSongs = routeSongs
+                            }
+                        },
+                        showSortBy = current.supportsSort() && routeSongs.isNotEmpty(),
+                        sortLabel = sortMode.label,
+                        onSortBy = { sortDialog = true },
+                        showPlaylistEdit = editablePlaylist || managePlaylists,
+                        onEditPlaylist = {
+                            if (currentPlaylist != null) {
+                                renamePlaylistTarget =
+                                    PlaylistTarget(currentPlaylist.playlistId, currentPlaylist.name)
+                            } else if (current == Route.Playlists) {
+                                playlistPickerMode = PlaylistMenuMode.Rename
+                            }
+                        },
+                        showRemoveSongs = editablePlaylist && routeSongs.isNotEmpty(),
+                        onRemoveSongs = {
+                            currentPlaylist?.let {
+                                navigate(Route.RemoveSongs(it.playlistId, it.name))
+                            }
+                        },
+                        showPlaylistDelete = editablePlaylist || managePlaylists,
+                        onDeletePlaylist = {
+                            if (currentPlaylist != null) {
+                                removePlaylistTarget =
+                                    PlaylistTarget(currentPlaylist.playlistId, currentPlaylist.name)
+                            } else if (current == Route.Playlists) {
+                                playlistPickerMode = PlaylistMenuMode.Remove
+                            }
                         },
                         onMenuAction = { action ->
                             when (action) {
@@ -309,6 +372,7 @@ fun AppRoot(
                         state = library,
                         actions = playActions,
                         currentSongId = playerState.songId,
+                        sortMode = sortMode,
                     )
 
                     is Route.Smart -> SmartScreen(
@@ -316,6 +380,7 @@ fun AppRoot(
                         state = library,
                         actions = playActions,
                         currentSongId = playerState.songId,
+                        sortMode = sortMode,
                     )
 
                     Route.Albums -> AlbumsScreen(
@@ -328,6 +393,7 @@ fun AppRoot(
                         state = library,
                         actions = playActions,
                         currentSongId = playerState.songId,
+                        sortMode = sortMode,
                     )
 
                     Route.Artists -> ArtistsScreen(
@@ -341,6 +407,7 @@ fun AppRoot(
                         state = library,
                         actions = playActions,
                         currentSongId = playerState.songId,
+                        sortMode = sortMode,
                     )
 
                     Route.Genres -> GenresScreen(
@@ -353,12 +420,15 @@ fun AppRoot(
                         viewModel = libraryViewModel,
                         actions = playActions,
                         currentSongId = playerState.songId,
+                        sortMode = sortMode,
                     )
 
                     Route.Playlists -> PlaylistsScreen(
                         playlists = library.allPlaylists,
                         onCreate = { createPlaylistDialog = true },
                         onOpen = { navigate(Route.PlaylistDetail(it.id, it.name)) },
+                        onRename = { renamePlaylistTarget = PlaylistTarget(it.id, it.name) },
+                        onDelete = { removePlaylistTarget = PlaylistTarget(it.id, it.name) },
                     )
 
                     is Route.PlaylistDetail -> PlaylistDetailScreen(
@@ -369,6 +439,7 @@ fun AppRoot(
                         currentSongId = playerState.songId,
                         canAddSongs = route.playlistId < 0L,
                         onAddSongs = { addSongsDialog = true },
+                        sortMode = sortMode,
                     )
 
                     is Route.SongPicker -> SongPickerScreen(
@@ -385,6 +456,24 @@ fun AppRoot(
                                     added > 0 -> "Added $added songs to ${route.playlistName}"
                                     picked.isEmpty() -> "No songs selected"
                                     else -> "Those songs are already in ${route.playlistName}"
+                                },
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            goBack()
+                        },
+                    )
+
+                    is Route.RemoveSongs -> RemoveSongsScreen(
+                        playlistId = route.playlistId,
+                        playlistName = route.playlistName,
+                        viewModel = libraryViewModel,
+                        onRemoved = { removed ->
+                            Toast.makeText(
+                                context,
+                                when {
+                                    removed > 0 -> "Removed $removed songs"
+                                    removed == 0 -> "No songs removed"
+                                    else -> "Playlist not found"
                                 },
                                 Toast.LENGTH_SHORT,
                             ).show()
@@ -432,6 +521,7 @@ fun AppRoot(
                         state = library,
                         actions = playActions,
                         currentSongId = playerState.songId,
+                        sortMode = sortMode,
                     )
 
                     Route.Search -> SearchScreen(
@@ -550,6 +640,78 @@ fun AppRoot(
                 libraryViewModel.createPlaylist(name)
                 Toast.makeText(context, "Playlist created", Toast.LENGTH_SHORT).show()
                 createPlaylistDialog = false
+            },
+        )
+    }
+
+    if (sortDialog) {
+        SortByDialog(
+            current = sortMode,
+            onSelect = { mode ->
+                sortModeKey = mode.name
+                Prefs.sortMode = mode.name
+            },
+            onDismiss = { sortDialog = false },
+        )
+    }
+
+    playlistPickerMode?.let { mode ->
+        PlaylistPickerDialog(
+            title = if (mode == PlaylistMenuMode.Rename) {
+                "Edit playlist name"
+            } else {
+                "Remove playlist"
+            },
+            playlists = library.localPlaylists,
+            onPick = { playlist ->
+                playlistPickerMode = null
+                if (mode == PlaylistMenuMode.Rename) {
+                    renamePlaylistTarget = PlaylistTarget(playlist.id, playlist.name)
+                } else {
+                    removePlaylistTarget = PlaylistTarget(playlist.id, playlist.name)
+                }
+            },
+            onDismiss = { playlistPickerMode = null },
+        )
+    }
+
+    renamePlaylistTarget?.let { target ->
+        RenamePlaylistDialog(
+            currentName = target.name,
+            onDismiss = { renamePlaylistTarget = null },
+            onRename = { newName ->
+                val cleanName = newName.trim()
+                val renamed = libraryViewModel.renamePlaylist(target.id, cleanName)
+                if (renamed) {
+                    (current as? Route.PlaylistDetail)
+                        ?.takeIf { it.playlistId == target.id }
+                        ?.let { route ->
+                            backStack[backStack.lastIndex] = route.copy(name = cleanName)
+                        }
+                    Toast.makeText(context, "Playlist renamed", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Unable to rename playlist", Toast.LENGTH_SHORT).show()
+                }
+                renamePlaylistTarget = null
+            },
+        )
+    }
+
+    removePlaylistTarget?.let { target ->
+        ConfirmRemovePlaylistDialog(
+            playlistName = target.name,
+            onDismiss = { removePlaylistTarget = null },
+            onConfirm = {
+                val removed = libraryViewModel.removePlaylist(target.id)
+                if (removed) {
+                    if ((current as? Route.PlaylistDetail)?.playlistId == target.id) {
+                        goBack()
+                    }
+                    Toast.makeText(context, "Playlist removed", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Unable to remove playlist", Toast.LENGTH_SHORT).show()
+                }
+                removePlaylistTarget = null
             },
         )
     }
@@ -708,6 +870,15 @@ private fun AppTopBar(
     onSearch: () -> Unit,
     showAddToPlaylist: Boolean,
     onAddToPlaylist: () -> Unit,
+    showSortBy: Boolean,
+    sortLabel: String,
+    onSortBy: () -> Unit,
+    showPlaylistEdit: Boolean,
+    onEditPlaylist: () -> Unit,
+    showRemoveSongs: Boolean,
+    onRemoveSongs: () -> Unit,
+    showPlaylistDelete: Boolean,
+    onDeletePlaylist: () -> Unit,
     onMenuAction: (AppMenuAction) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -728,13 +899,25 @@ private fun AppTopBar(
                 tint = colors.onBackground,
             )
         }
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = colors.primary,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(8.dp))
+        if (showAddToPlaylist) {
+            IconButton(onClick = onAddToPlaylist) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = "Add current list to playlist",
+                    tint = colors.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+        } else {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = colors.primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         Text(
             text = title,
             fontSize = 20.sp,
@@ -759,7 +942,9 @@ private fun AppTopBar(
                 )
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                var hasListActions = false
                 if (showAddToPlaylist) {
+                    hasListActions = true
                     DropdownMenuItem(
                         text = { Text("Add to playlist") },
                         leadingIcon = {
@@ -774,6 +959,85 @@ private fun AppTopBar(
                             onAddToPlaylist()
                         },
                     )
+                }
+                if (showSortBy) {
+                    hasListActions = true
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text("Sort by")
+                                Text(
+                                    text = sortLabel,
+                                    fontSize = 11.sp,
+                                    color = colors.onSurfaceVariant,
+                                )
+                            }
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Sort,
+                                contentDescription = null,
+                                tint = colors.primary,
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onSortBy()
+                        },
+                    )
+                }
+                if (showPlaylistEdit) {
+                    hasListActions = true
+                    DropdownMenuItem(
+                        text = { Text("Edit playlist name") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = null,
+                                tint = colors.primary,
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onEditPlaylist()
+                        },
+                    )
+                }
+                if (showRemoveSongs) {
+                    hasListActions = true
+                    DropdownMenuItem(
+                        text = { Text("Remove songs") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                tint = colors.primary,
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onRemoveSongs()
+                        },
+                    )
+                }
+                if (showPlaylistDelete) {
+                    hasListActions = true
+                    DropdownMenuItem(
+                        text = { Text("Remove playlist") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                tint = colors.error,
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onDeletePlaylist()
+                        },
+                    )
+                }
+                if (hasListActions) {
                     HorizontalDivider(color = colors.outline, thickness = 0.5.dp)
                 }
                 DropdownMenuItem(
@@ -857,16 +1121,31 @@ private fun topBarTitle(route: Route, library: LibraryUiState): String = when (r
 }
 
 private fun topBarIcon(route: Route): ImageVector = when (route) {
-    Route.Home, Route.Songs, Route.Search -> Icons.Rounded.LibraryMusic
+    Route.Home -> Icons.AutoMirrored.Rounded.PlaylistAdd
+    Route.Songs, Route.Search -> Icons.Rounded.LibraryMusic
     Route.Albums, is Route.AlbumDetail -> Icons.Rounded.Album
     Route.Artists, is Route.ArtistDetail -> Icons.Rounded.Person
     Route.Genres, is Route.GenreDetail -> Icons.Rounded.Category
     Route.Playlists, is Route.PlaylistDetail -> Icons.Rounded.QueueMusic
     Route.Folders, is Route.FolderDetail -> Icons.Rounded.Folder
     is Route.SongPicker, is Route.FolderPicker -> Icons.AutoMirrored.Rounded.PlaylistAdd
+    is Route.RemoveSongs -> Icons.Rounded.Delete
     Route.Settings -> Icons.Rounded.Settings
     is Route.Smart -> Icons.Rounded.Star
     else -> Icons.Rounded.MusicNote
+}
+
+/** Routes whose list can be re-ordered by the shared Sort by menu. */
+private fun Route.supportsSort(): Boolean = when (this) {
+    Route.Songs,
+    is Route.Smart,
+    is Route.AlbumDetail,
+    is Route.ArtistDetail,
+    is Route.GenreDetail,
+    is Route.PlaylistDetail,
+    is Route.FolderDetail,
+    -> true
+    else -> false
 }
 
 private fun shareSong(context: Context, song: Song) {
@@ -909,6 +1188,8 @@ private fun songFromUri(context: Context, uri: Uri): Song? {
             trackNumber = 0,
             year = 0,
             dateAdded = 0L,
+            fileName = fallbackTitle,
+            dateModified = 0L,
             genre = "",
             folder = "",
         )
@@ -924,6 +1205,8 @@ private fun songFromUri(context: Context, uri: Uri): Song? {
             trackNumber = 0,
             year = 0,
             dateAdded = 0L,
+            fileName = fallbackTitle,
+            dateModified = 0L,
             genre = "",
             folder = "",
         )

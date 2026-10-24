@@ -12,6 +12,10 @@ data class Song(
     val trackNumber: Int,
     val year: Int,
     val dateAdded: Long,
+    /** Original file name from MediaStore, used by the file-name sort modes. */
+    val fileName: String,
+    /** Last modification time in epoch seconds, used by the modified sort modes. */
+    val dateModified: Long,
     val genre: String,
     val folder: String,
 )

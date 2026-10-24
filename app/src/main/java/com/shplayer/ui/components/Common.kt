@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MoreVert
@@ -246,6 +247,8 @@ data class SongMenuActions(
     val onInfo: () -> Unit,
     val onShare: () -> Unit,
     val onAddToPlaylist: () -> Unit,
+    /** Set only while the row is shown inside an editable playlist. */
+    val onRemoveFromPlaylist: (() -> Unit)? = null,
 )
 
 @Composable
@@ -342,6 +345,22 @@ fun SongRow(
                         },
                         onClick = { menuOpen = false; actions.onAddToPlaylist() },
                     )
+                    actions.onRemoveFromPlaylist?.let { removeFromPlaylist ->
+                        DropdownMenuItem(
+                            text = { Text("Remove from playlist") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Delete,
+                                    contentDescription = null,
+                                    tint = colors.error,
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                removeFromPlaylist()
+                            },
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Song info") },
                         onClick = { menuOpen = false; actions.onInfo() },

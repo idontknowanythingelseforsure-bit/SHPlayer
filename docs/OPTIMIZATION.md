@@ -156,20 +156,34 @@ Bulk filling:
 
 - `Prefs.addSongsToLocalPlaylist(playlistId, songIds)` adds all new ids in one
   JSON write and returns the number added (−1 when the playlist is gone).
-- The top-bar overflow action resolves the current screen's songs in
-  `AppRoot` (`routeSongs`) and feeds them to `AddToPlaylistDialog`.
+- The top-bar overflow action and the contextual playlist icon resolve the
+  current screen's songs in `AppRoot` (`routeSongs`) and feed them to
+  `AddToPlaylistDialog`.
 - A local playlist's detail screen shows a "+" FAB. `AddSongsToPlaylistDialog`
   opens `Route.SongPicker` (searchable multi-select) or `Route.FolderPicker`
   (one tap adds a whole folder).
 - `SearchScreen` reports its current result page through `onResultsChanged`, so
   the top-bar bulk action also works on filtered search results.
 
+Editing and removal (local playlists only):
+
+- `Prefs.renameLocalPlaylist`, `Prefs.removeLocalPlaylist` and
+  `Prefs.removeSongsFromLocalPlaylist` are the single JSON-write mutations.
+  `LibraryViewModel` refreshes `localPlaylists` after each successful change.
+- The Playlists screen gives each local row an overflow menu, and the playlist
+  detail top bar repeats the actions. Removal asks for confirmation.
+- The playlist detail top bar has **Remove songs**, which opens
+  `Route.RemoveSongs`; it reuses `SongPickerScreen` with remove-specific button
+  text. Individual rows gain **Remove from playlist** through the optional
+  `SongMenuActions.onRemoveFromPlaylist` callback.
+- MediaStore playlists stay read-only because the app does not request
+  write access to them.
+
 Deferred extensions:
 
-- rename / delete / reorder and remove-song (add a `deleteLocalPlaylist` and
-  `removeFromLocalPlaylist` next to the existing create/add helpers)
+- drag-and-drop reordering of songs inside a playlist
 - persist to Room when playlists grow beyond a few hundred entries
-- allow adding to *MediaStore* playlists (requires `WRITE_EXTERNAL_STORAGE`
+- allow editing *MediaStore* playlists (requires `WRITE_EXTERNAL_STORAGE`
   below API 29 and a user confirmation on newer versions)
 
 ## 15. Folder roots (SAF)
@@ -243,3 +257,29 @@ Deferred extensions:
 - additional sizes/layouts (`targetCellWidth` 2 and 5) and a lock-screen widget
 - update via `Glance` for Compose-native styling
 - a queue shortcut
+
+## 18. Library sorting
+
+**Files:** `ui/SortMode.kt`, `ui/AppRoot.kt`, `ui/screens/ListScreens.kt`,
+`data/MusicRepository.kt`, `data/Prefs.kt`
+
+`SortMode` has a `Default` entry that preserves each screen's natural order
+(track order for albums, insertion order for playlists, smart-list order) and
+the four requested explicit modes:
+
+- `File name (A to Z)` / `File name (Z to A)` use
+  `MediaStore.Audio.Media.DISPLAY_NAME`.
+- `Modified (newest first)` / `Modified (oldest first)` use
+  `MediaStore.Audio.Media.DATE_MODIFIED`.
+
+The selected mode is persisted by enum name in `Prefs.sortMode`; `AppRoot`
+applies it to `routeSongs` and passes it to every song-list screen. The shared
+`SongListPage` is deliberately not responsible for ordering so each screen's
+header (Play all / Shuffle / count) and its row indices always use the same
+ordered list.
+
+The sort menu currently applies to Songs, smart lists, album/artist/genre
+details, local/system playlist details and folder details. If Home should gain
+its own sort control later, pass `sortMode` to `HomeScreen` and sort
+`recentSongs` there; keeping it out of Home preserves the "recently played"
+meaning.

@@ -31,6 +31,8 @@ class MusicRepository(private val context: Context) {
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATE_MODIFIED,
+            MediaStore.Audio.Media.DISPLAY_NAME,
             MediaStore.Audio.Media.DATA,
         )
         val selection =
@@ -226,6 +228,8 @@ class MusicRepository(private val context: Context) {
             MediaStore.Audio.Media.TRACK,
             MediaStore.Audio.Media.YEAR,
             MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATE_MODIFIED,
+            MediaStore.Audio.Media.DISPLAY_NAME,
             MediaStore.Audio.Media.DATA,
         )
         val songs = mutableListOf<Song>()
@@ -276,6 +280,9 @@ class MusicRepository(private val context: Context) {
             trackNumber = cursor.int(MediaStore.Audio.Media.TRACK),
             year = cursor.int(MediaStore.Audio.Media.YEAR),
             dateAdded = cursor.long(MediaStore.Audio.Media.DATE_ADDED),
+            fileName = cursor.text(MediaStore.Audio.Media.DISPLAY_NAME)
+                ?: data.substringAfterLast('/').ifBlank { cursor.text(MediaStore.Audio.Media.TITLE).orEmpty() },
+            dateModified = cursor.long(MediaStore.Audio.Media.DATE_MODIFIED),
             genre = "",
             folder = data.substringBeforeLast('/', ""),
         )

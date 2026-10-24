@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +27,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shplayer.data.Folder
 import com.shplayer.data.Song
+import com.shplayer.ui.LibraryViewModel
 import com.shplayer.ui.components.EmptyState
 import com.shplayer.ui.components.formatDuration
 import com.shplayer.ui.components.formatLongDuration
@@ -50,6 +53,13 @@ fun SongPickerScreen(
     songs: List<Song>,
     playlistName: String,
     onAdd: (List<Song>) -> Unit,
+    confirmText: (Int) -> String = { count ->
+        if (count == 0) {
+            "Select songs to add to $playlistName"
+        } else {
+            "Add $count songs to $playlistName"
+        }
+    },
 ) {
     val colors = MaterialTheme.colorScheme
     var query by remember { mutableStateOf("") }
@@ -174,16 +184,57 @@ fun SongPickerScreen(
             ),
         ) {
             Text(
-                text = if (selected.isEmpty()) {
-                    "Select songs to add to $playlistName"
-                } else {
-                    "Add ${selected.size} songs to $playlistName"
-                },
+                text = confirmText(selected.size),
                 fontSize = 15.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/**
+ * Multi-select list of the songs already in a local playlist. The caller
+ * receives the selected songs and performs the removal.
+ */
+@Composable
+fun RemoveSongsScreen(
+    playlistId: Long,
+    playlistName: String,
+    viewModel: LibraryViewModel,
+    onRemoved: (Int) -> Unit,
+) {
+    var songs by remember(playlistId) { mutableStateOf<List<Song>?>(null) }
+
+    LaunchedEffect(playlistId) {
+        songs = viewModel.resolvePlaylistSongs(playlistId)
+    }
+
+    val loaded = songs
+    when {
+        loaded == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        }
+        loaded.isEmpty() -> EmptyState("This playlist has no songs")
+        else -> SongPickerScreen(
+            songs = loaded,
+            playlistName = playlistName,
+            onAdd = { picked ->
+                onRemoved(
+                    viewModel.removeSongsFromPlaylist(
+                        playlistId = playlistId,
+                        songIds = picked.map { it.id },
+                    ),
+                )
+            },
+            confirmText = { count ->
+                if (count == 0) {
+                    "Select songs to remove"
+                } else {
+                    "Remove $count songs from \"$playlistName\""
+                }
+            },
+        )
     }
 }
 

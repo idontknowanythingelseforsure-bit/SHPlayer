@@ -1,5 +1,6 @@
 package com.shplayer.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,12 +25,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.shplayer.data.Song
 import com.shplayer.ui.LibraryUiState
 import com.shplayer.ui.LibraryViewModel
 import com.shplayer.ui.PlayActions
 import com.shplayer.ui.SmartKind
+import com.shplayer.ui.SortMode
+import com.shplayer.ui.sortedFor
 import com.shplayer.ui.components.DetailHeader
 import com.shplayer.ui.components.EmptyState
 import com.shplayer.ui.components.FastScroller
@@ -58,6 +62,8 @@ fun SongListPage(
     header: (@Composable () -> Unit)? = null,
     showArtwork: Boolean = false,
     emptyText: String = "No songs here",
+    /** Available only while viewing a user-created playlist. */
+    onRemoveFromPlaylist: ((Song) -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
 
@@ -78,7 +84,14 @@ fun SongListPage(
                         isCurrent = song.id == currentSongId,
                         showArtwork = showArtwork,
                         isFavorite = song.id in favorites,
-                        actions = actions.songMenuActions(song, songs, index),
+                        actions = actions.songMenuActions(
+                            song = song,
+                            songs = songs,
+                            index = index,
+                            onRemoveFromPlaylist = onRemoveFromPlaylist?.let { remove ->
+                                { remove(song) }
+                            },
+                        ),
                     )
                 }
                 item(key = "bottom-space") { Spacer(Modifier.height(12.dp)) }
@@ -109,9 +122,10 @@ fun AllSongsScreen(
     state: LibraryUiState,
     actions: PlayActions,
     currentSongId: Long,
+    sortMode: SortMode = SortMode.Default,
 ) {
     SongListPage(
-        songs = state.songs,
+        songs = state.songs.sortedFor(sortMode),
         actions = actions,
         currentSongId = currentSongId,
         favorites = state.favorites,
@@ -124,8 +138,9 @@ fun SmartScreen(
     state: LibraryUiState,
     actions: PlayActions,
     currentSongId: Long,
+    sortMode: SortMode = SortMode.Default,
 ) {
-    val songs = smartSongs(kind, state)
+    val songs = smartSongs(kind, state).sortedFor(sortMode)
 
     SongListPage(
         songs = songs,
@@ -160,11 +175,13 @@ fun AlbumDetailScreen(
     state: LibraryUiState,
     actions: PlayActions,
     currentSongId: Long,
+    sortMode: SortMode = SortMode.Default,
 ) {
     val album = state.albums.firstOrNull { it.id == albumId }
     val songs = state.songs
         .filter { it.albumId == albumId }
         .sortedBy { it.trackNumber }
+        .sortedFor(sortMode)
 
     SongListPage(
         songs = songs,
@@ -193,8 +210,9 @@ fun ArtistDetailScreen(
     state: LibraryUiState,
     actions: PlayActions,
     currentSongId: Long,
+    sortMode: SortMode = SortMode.Default,
 ) {
-    val songs = state.songs.filter { it.artist == artist }
+    val songs = state.songs.filter { it.artist == artist }.sortedFor(sortMode)
     val albumCount = songs.map { it.albumId }.distinct().size
     val artAlbumId = songs.firstOrNull { it.albumId > 0 }?.albumId ?: 0L
 
@@ -225,6 +243,7 @@ fun GenreDetailScreen(
     viewModel: LibraryViewModel,
     actions: PlayActions,
     currentSongId: Long,
+    sortMode: SortMode = SortMode.Default,
 ) {
     var songs by remember(genre) { mutableStateOf<List<Song>?>(null) }
 
@@ -236,8 +255,9 @@ fun GenreDetailScreen(
     if (loaded == null) {
         LoadingBox()
     } else {
+        val ordered = loaded.sortedFor(sortMode)
         SongListPage(
-            songs = loaded,
+            songs = ordered,
             actions = actions,
             currentSongId = currentSongId,
             favorites = emptySet(),
@@ -245,13 +265,13 @@ fun GenreDetailScreen(
                 DetailHeader(
                     title = genre,
                     subtitle = "Genre",
-                    meta = "${loaded.map { it.artist }.distinct().size} artists",
-                    countText = loaded.size.toString(),
-                    artAlbumId = loaded.firstOrNull()?.albumId ?: 0L,
+                    meta = "${ordered.map { it.artist }.distinct().size} artists",
+                    countText = ordered.size.toString(),
+                    artAlbumId = ordered.firstOrNull()?.albumId ?: 0L,
                     showDisc = true,
-                    onPlayAll = { actions.play(loaded, 0) },
-                    onShuffle = { actions.shuffleAll(loaded) },
-                    onQueueAll = { actions.queueAll(loaded) },
+                    onPlayAll = { actions.play(ordered, 0) },
+                    onShuffle = { actions.shuffleAll(ordered) },
+                    onQueueAll = { actions.queueAll(ordered) },
                 )
             },
         )
@@ -267,7 +287,9 @@ fun PlaylistDetailScreen(
     currentSongId: Long,
     canAddSongs: Boolean = false,
     onAddSongs: () -> Unit = {},
+    sortMode: SortMode = SortMode.Default,
 ) {
+    val context = LocalContext.current
     var songs by remember(playlistId) { mutableStateOf<List<Song>?>(null) }
 
     LaunchedEffect(playlistId) {
@@ -278,9 +300,10 @@ fun PlaylistDetailScreen(
     if (loaded == null) {
         LoadingBox()
     } else {
+        val ordered = loaded.sortedFor(sortMode)
         Box(Modifier.fillMaxSize()) {
             SongListPage(
-                songs = loaded,
+                songs = ordered,
                 actions = actions,
                 currentSongId = currentSongId,
                 favorites = emptySet(),
@@ -288,14 +311,38 @@ fun PlaylistDetailScreen(
                     DetailHeader(
                         title = name,
                         subtitle = "Playlist",
-                        meta = "${loaded.map { it.artist }.distinct().size} artists",
-                        countText = loaded.size.toString(),
-                        artAlbumId = loaded.firstOrNull()?.albumId ?: 0L,
+                        meta = "${ordered.map { it.artist }.distinct().size} artists",
+                        countText = ordered.size.toString(),
+                        artAlbumId = ordered.firstOrNull()?.albumId ?: 0L,
                         showDisc = true,
-                        onPlayAll = { actions.play(loaded, 0) },
-                        onShuffle = { actions.shuffleAll(loaded) },
-                        onQueueAll = { actions.queueAll(loaded) },
+                        onPlayAll = { actions.play(ordered, 0) },
+                        onShuffle = { actions.shuffleAll(ordered) },
+                        onQueueAll = { actions.queueAll(ordered) },
                     )
+                },
+                onRemoveFromPlaylist = if (canAddSongs) {
+                    { song ->
+                        val removed = viewModel.removeSongsFromPlaylist(
+                            playlistId = playlistId,
+                            songIds = listOf(song.id),
+                        )
+                        if (removed > 0) {
+                            songs = songs?.filterNot { it.id == song.id }
+                            Toast.makeText(
+                                context,
+                                "Removed from playlist",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Song was not in this playlist",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+                } else {
+                    null
                 },
             )
 
@@ -325,10 +372,12 @@ fun FolderDetailScreen(
     state: LibraryUiState,
     actions: PlayActions,
     currentSongId: Long,
+    sortMode: SortMode = SortMode.Default,
 ) {
     val songs = state.songs
         .filter { it.folder == path }
         .sortedBy { it.title.lowercase() }
+        .sortedFor(sortMode)
 
     SongListPage(
         songs = songs,

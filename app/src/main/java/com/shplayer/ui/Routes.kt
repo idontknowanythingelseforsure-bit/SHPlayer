@@ -27,6 +27,7 @@ sealed interface Route {
     data class Smart(val kind: SmartKind) : Route
     data class SongPicker(val playlistId: Long, val playlistName: String) : Route
     data class FolderPicker(val playlistId: Long, val playlistName: String) : Route
+    data class RemoveSongs(val playlistId: Long, val playlistName: String) : Route
 }
 
 fun Route.title(): String = when (this) {
@@ -49,4 +50,5 @@ fun Route.title(): String = when (this) {
     is Route.Smart -> kind.title
     is Route.SongPicker -> "Add songs"
     is Route.FolderPicker -> "Add folder"
+    is Route.RemoveSongs -> "Remove songs"
 }

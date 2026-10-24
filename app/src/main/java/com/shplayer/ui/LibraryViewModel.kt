@@ -136,6 +136,27 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         return added
     }
 
+    /** Renames a user-created playlist. MediaStore playlists are read-only. */
+    fun renamePlaylist(playlistId: Long, name: String): Boolean {
+        val renamed = Prefs.renameLocalPlaylist(playlistId, name)
+        if (renamed) refreshLocalPlaylists()
+        return renamed
+    }
+
+    /** Removes a user-created playlist. MediaStore playlists are read-only. */
+    fun removePlaylist(playlistId: Long): Boolean {
+        val removed = Prefs.removeLocalPlaylist(playlistId)
+        if (removed) refreshLocalPlaylists()
+        return removed
+    }
+
+    /** @return the number of songs removed, or -1 when the playlist is gone. */
+    fun removeSongsFromPlaylist(playlistId: Long, songIds: List<Long>): Int {
+        val removed = Prefs.removeSongsFromLocalPlaylist(playlistId, songIds)
+        if (removed > 0) refreshLocalPlaylists()
+        return removed
+    }
+
     fun addFolderRoot(path: String) {
         val normalized = path.trimEnd('/')
         if (normalized.isBlank()) return

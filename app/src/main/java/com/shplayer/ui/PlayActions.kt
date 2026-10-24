@@ -29,6 +29,7 @@ fun PlayActions.songMenuActions(
     song: Song,
     songs: List<Song>,
     index: Int,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
 ): SongMenuActions = SongMenuActions(
     onPlay = { if (songs.isNotEmpty()) play(songs, index.coerceIn(0, songs.lastIndex)) },
     onPlayNext = { playNext(song) },
@@ -37,4 +38,5 @@ fun PlayActions.songMenuActions(
     onInfo = { info(song) },
     onShare = { share(song) },
     onAddToPlaylist = { addToPlaylist(song) },
+    onRemoveFromPlaylist = onRemoveFromPlaylist,
 )
